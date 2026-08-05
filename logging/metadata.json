@@ -1,0 +1,9 @@
+{
+  "model": "qwen2.5-coder:1.5b",
+  "parameter_size": "1.5B",
+  "framework": "custom-multi-agent",
+  "runtime": "344.17s",
+  "provider": "ollama",
+  "num_cases": 50,
+  "timestamp": "2026-08-05T17:04:12.582898"
+}

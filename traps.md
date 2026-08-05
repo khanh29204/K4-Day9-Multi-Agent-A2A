@@ -24,10 +24,12 @@ Tất cả các thành viên trong team cần đọc kỹ để tránh bị tr�
 | **12** | Đơn `canceled` / `unavailable` không có payment | Policy | 🟡 **Trung bình** | Trả về refund khi khách chưa hề trả tiền |
 | **13** | Vi phạm thứ tự ưu tiên Primary & Secondary Issues | Policy | ⚠️ **Cao** | Sai Issue chính / phụ (trừ 15% điểm) |
 | **14** | Vượt quá giới hạn mảng (Array Limits) | Schema | 🟡 **Trung bình** | JSON vượt quá kích thước mảng cho phép |
+| **15** | Tự ý dịch `category_names` sang tiếng Anh | Schema / Ground Truth | 🚨 **Rất Cao** | Sai tên danh mục ➔ Trừ 100% điểm Product Context |
+| **16** | Ép kiểu Float cho `item_ids` (`...:1.0` thay vì `...:1`) | Schema / Formatting | 🚨 **Hard Gate** | Sai định dạng Item ID ➔ Bị tính False Positive 0đ |
 
 ---
 
-## 🎯 Chi Tiết 14 Bẫy Nghiệp Vụ & Dữ Liệu
+## 🎯 Chi Tiết 16 Bẫy Nghiệp Vụ & Dữ Liệu
 
 ### 1. `customer_id` vs `customer_unique_id`
 - **Mô tả:** Trong Olist, mỗi đơn hàng được cấp một `customer_id` mới ngẫu nhiên. Danh tính thực sự của khách hàng nằm ở cột `customer_unique_id`.
@@ -67,9 +69,7 @@ Tất cả các thành viên trong team cần đọc kỹ để tránh bị tr�
 ### 4. Dịch Tên Danh Mục Bị Mất Data (Category Translation)
 - **Mô tả:** File `product_category_name_translation.csv` chỉ chứa 71 danh mục, trong khi `olist_products_dataset.csv` có 73 danh mục (thiếu `pc_gamer` và `portateis_cozinha_e_preparadores_de_alimentos`).
 - **Dễ mắc sai lầm:** Dùng `INNER JOIN` giữa Products và Translation ➔ Mất các sản phẩm thuộc danh mục chưa dịch.
-- **Cách xử lý đúng:**
-  - Luôn dùng `LEFT JOIN` (hoặc lookup an toàn trong Python).
-  - Nếu tên tiếng Anh không tồn tại (`NaN`/`None`), **giữ nguyên tên gốc tiếng Bồ Đào Nha**.
+- **Cách xử lý đúng:** Luôn giữ nguyên tên gốc tiếng Bồ Đào Nha từ cột `product_category_name` trong `products.csv`.
 
 ---
 
@@ -116,7 +116,7 @@ Tất cả các thành viên trong team cần đọc kỹ để tránh bị tr�
   3. `verify_refund_completion` (nếu refund > 0)
   4. `coordinate_multi_seller_case` (nếu multi-seller)
   5. `verify_payment_allocation` (nếu split payment)
-- **ĐIỀU KIỆN ĐẶC BIỆT:** **KHÔNG** thêm `verify_payment_allocation` khi Primary Issue là `valid_split_payment` (vì Action chính đã giải thích split payment rồi).
+- **ĐIỀU KIỆN ĐẶC BIỆT:** **KHÔNG** thêm `verify_payment_allocation` khi Primary Issue là `valid_split_payment` (vì Action chính đã giải thích split payment).
 
 ---
 
@@ -180,9 +180,24 @@ limit_resolution_actions = 5
 
 ---
 
+### 15. Tự Ý Dịch `category_names` Sang Tiếng Anh
+- **Mô tả:** Trong `olist_products_dataset.csv`, cột `product_category_name` lưu tên danh mục gốc bằng tiếng Bồ Đào Nha (ví dụ `beleza_saude`). Có 1 file `product_category_name_translation.csv` dùng để dịch sang tiếng Anh (`health_beauty`).
+- **Dễ mắc sai lầm:** Dịch tên category sang tiếng Anh trong trường `product_context.category_names`.
+- **Cách xử lý đúng:** Ground truth của bộ chấm yêu cầu **GIỮ NGUYÊN TÊN GỐC TIẾNG BỒ ĐÀO NHA** từ cột `product_category_name` trong `products.csv` (ví dụ `beleza_saude`). Không dịch sang tiếng Anh.
+
+---
+
+### 16. Ép Kiểu Float Cho `item_ids` (`...:1.0` thay vì `...:1`)
+- **Mô tả:** Cột `order_item_id` khi đọc từ CSV qua Pandas DataFrame mặc định được nhận diện là Float (`1.0`). Khi format chuỗi `f"{order_id}:{item['order_item_id']}"` sẽ tạo ra `...:1.0`.
+- **Dễ mắc sai lầm:** Không ép kiểu `int` cho `order_item_id` ➔ Tạo ra ID `...:1.0`.
+- **Cách xử lý đúng:** Ép kiểu `int(float(item['order_item_id']))` để đảm bảo chuỗi trả về đúng dạng `...:1`.
+
+---
+
 ## 🛠️ Code Verification Status
 
-Tất cả 14 bẫy trên đã được kiểm tra và xử lý triệt để trong codebase:
+Tất cả 16 bẫy trên đã được kiểm tra và xử lý triệt để trong codebase:
 - ✅ `models.py`: Đã mặc định mảng rỗng `[]` thay vì `null` cho các trường danh sách.
+- ✅ `order_product_agent.py`: Đã giữ nguyên tên tiếng Bồ Đào Nha cho `category_names` (`product_category_name`) và ép kiểu `int(float(...))` cho `order_item_id`.
 - ✅ `policy_agent.py`: Đã cài đặt đúng 100% thứ tự ưu tiên, công thức, evidence format, và điều kiện loại trừ action.
-- ✅ `data_access.py`: Đã hỗ trợ lookup `customer_unique_id` và `LEFT JOIN` category translation.
+- ✅ `data_access.py`: Đã hỗ trợ lookup `customer_unique_id`.

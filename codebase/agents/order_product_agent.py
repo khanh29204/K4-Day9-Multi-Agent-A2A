@@ -64,18 +64,20 @@ class OrderProductAgent(BaseAgent):
         seen_categories = set()
 
         for item in items:
-            affected_item_ids.append(f"{order_id}:{item['order_item_id']}")
+            item_seq = int(float(item['order_item_id'])) if item.get('order_item_id') is not None else 1
+            affected_item_ids.append(f"{order_id}:{item_seq}")
+
 
             product_id = item.get("product_id")
             product = self.data.get_product(product_id) if product_id else None
             if product:
                 products.append(product)
                 category_name = product.get("product_category_name")
-                if category_name:
-                    english_category = self.data.get_category_translation(category_name)
-                    if english_category and english_category not in seen_categories:
-                        seen_categories.add(english_category)
-                        categories.append(english_category)
+                if category_name and str(category_name).strip().lower() not in ("nan", "none", "nat", "") and category_name not in seen_categories:
+                    seen_categories.add(category_name)
+                    categories.append(category_name)
+
+
 
             if product_id and product_id not in seen_product_ids:
                 seen_product_ids.add(product_id)

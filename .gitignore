@@ -5,3 +5,4 @@
 skills-lock.json
 __pycache__/
 */__pycache__/
+run_*

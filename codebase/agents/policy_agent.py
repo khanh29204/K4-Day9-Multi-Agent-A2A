@@ -330,12 +330,19 @@ class PolicyAgent(BaseAgent):
             for item in items:
                 item_id = item.get("order_item_id")
                 if item_id is not None:
-                    evidence.append(f"item:{order_id}:{int(item_id)}")
+                    try:
+                        evidence.append(f"item:{order_id}:{int(float(item_id))}")
+                    except (ValueError, TypeError):
+                        pass
         if payment_rows:
             for p in payment_rows:
                 seq = p.get("payment_sequential")
                 if seq is not None:
-                    evidence.append(f"payment:{order_id}:{int(seq)}")
+                    try:
+                        evidence.append(f"payment:{order_id}:{int(float(seq))}")
+                    except (ValueError, TypeError):
+                        pass
+
         for party in responsible_parties:
             if party.get("party_type") == "seller" and party.get("party_id"):
                 evidence.append(f"seller:{party['party_id']}")

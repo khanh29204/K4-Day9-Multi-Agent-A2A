@@ -17,7 +17,7 @@ from typing import List
 
 from config import (
     DATA_DIR, INPUT_DIR, OUTPUT_DIR, LOGGING_DIR, CODEBASE_DIR,
-    TRACE_FILE, METADATA_FILE, MODEL_NAME, MODEL_PROVIDER,
+    TRACE_FILE, METADATA_FILE, MODEL_NAME, MODEL_PROVIDER, PARAMETER_SIZE,
     MODEL_BASE_URL, MODEL_API_KEY, TEMPERATURE
 )
 
@@ -126,26 +126,37 @@ async def main():
     total_time = time.time() - start_time
     logger.info(f"All cases processed in {total_time:.2f}s")
     
-    # Write trace.jsonl exclusively inside logging/ directory
-    os.makedirs(LOGGING_DIR, exist_ok=True)
-    with open(TRACE_FILE, "w", encoding="utf-8") as f:
-        for entry in trace_entries:
-            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-    logger.info(f"Trace written to {TRACE_FILE}")
+    # Write trace.jsonl to root repo and logging/ directory
+    trace_paths = [
+        TRACE_FILE,
+        os.path.join(LOGGING_DIR, "trace.jsonl"),
+    ]
+    for tp in trace_paths:
+        os.makedirs(os.path.dirname(tp), exist_ok=True)
+        with open(tp, "w", encoding="utf-8") as f:
+            for entry in trace_entries:
+                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        logger.info(f"Trace written to {tp}")
 
-    # Write metadata.json exclusively inside logging/ directory
     metadata = {
         "model": MODEL_NAME,
-        "parameter_size": "8B",
+        "parameter_size": PARAMETER_SIZE,
         "framework": "custom-multi-agent",
         "runtime": f"{total_time:.2f}s",
         "provider": MODEL_PROVIDER,
         "num_cases": len(case_ids),
         "timestamp": datetime.now().isoformat(),
     }
-    with open(METADATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(metadata, f, indent=2, ensure_ascii=False)
-    logger.info(f"Metadata written to {METADATA_FILE}")
+    metadata_paths = [
+        METADATA_FILE,
+        os.path.join(LOGGING_DIR, "metadata.json"),
+    ]
+    for mp in metadata_paths:
+        os.makedirs(os.path.dirname(mp), exist_ok=True)
+        with open(mp, "w", encoding="utf-8") as f:
+            json.dump(metadata, f, indent=2, ensure_ascii=False)
+        logger.info(f"Metadata written to {mp}")
+
 
 
 

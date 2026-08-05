@@ -43,12 +43,27 @@ class CustomerAgent(BaseAgent):
             }
 
         customer_unique_id = customer.get("customer_unique_id")
+        if not customer_unique_id or str(customer_unique_id).strip().lower() in ("nan", "none", "nat", ""):
+            return {
+                "customer_unique_id": None,
+                "related_order_ids": [],
+                "is_repeat_customer": False,
+            }
+
         all_orders = self.data.get_customer_orders(customer_unique_id)
 
-        related_order_ids = [
-            order["order_id"] for order in all_orders if order.get("order_id") != order_id
-        ][:5]
+        related_order_ids = []
+        seen_related = set()
+        for order in all_orders:
+            oid = order.get("order_id")
+            if oid and oid != order_id and oid not in seen_related:
+                seen_related.add(oid)
+                related_order_ids.append(oid)
+                if len(related_order_ids) >= 5:
+                    break
+
         is_repeat_customer = len(related_order_ids) > 0
+
 
         # LLM reasoning integration
         if self.llm:
