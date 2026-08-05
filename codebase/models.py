@@ -19,18 +19,18 @@ class CaseAssessment(BaseModel):
     confidence: Optional[float] = None
 
 class AffectedEntities(BaseModel):
-    order_ids: Optional[List[str]] = None
-    item_ids: Optional[List[str]] = None
-    seller_ids: Optional[List[str]] = None
-    payment_ids: Optional[List[str]] = None
+    order_ids: List[str] = Field(default_factory=list)
+    item_ids: List[str] = Field(default_factory=list)
+    seller_ids: List[str] = Field(default_factory=list)
+    payment_ids: List[str] = Field(default_factory=list)
 
 class CustomerContext(BaseModel):
     customer_unique_id: Optional[str] = None
-    related_order_ids: Optional[List[str]] = None
+    related_order_ids: List[str] = Field(default_factory=list)
 
 class ProductContext(BaseModel):
-    product_ids: Optional[List[str]] = None
-    category_names: Optional[List[str]] = None
+    product_ids: List[str] = Field(default_factory=list)
+    category_names: List[str] = Field(default_factory=list)
 
 class SellerHandoffAnalysis(BaseModel):
     seller_id: Optional[str] = None
@@ -43,18 +43,18 @@ class DeliveryAnalysis(BaseModel):
     estimated_delivery_at: Optional[str] = None
     carrier_handoff_at: Optional[str] = None
     delivery_variance_hours: Optional[float] = None
-    seller_handoff_analysis: Optional[List[SellerHandoffAnalysis]] = None
-    late_handoff_seller_ids: Optional[List[str]] = None
+    seller_handoff_analysis: List[SellerHandoffAnalysis] = Field(default_factory=list)
+    late_handoff_seller_ids: List[str] = Field(default_factory=list)
 
 class PaymentReconciliation(BaseModel):
-    currency: Optional[str] = None
+    currency: Optional[str] = "BRL"
     item_total_brl: Optional[float] = None
     freight_total_brl: Optional[float] = None
     expected_total_brl: Optional[float] = None
     payment_total_brl: Optional[float] = None
     difference_brl: Optional[float] = None
     reconciled: Optional[bool] = None
-    payment_types: Optional[List[str]] = None
+    payment_types: List[str] = Field(default_factory=list)
 
 class RankedCause(BaseModel):
     cause_code: Optional[str] = None
@@ -65,12 +65,12 @@ class ResponsibleParty(BaseModel):
     party_id: Optional[str] = None
 
 class RootCauseAnalysis(BaseModel):
-    ranked_causes: Optional[List[RankedCause]] = None
-    responsible_parties: Optional[List[ResponsibleParty]] = None
+    ranked_causes: List[RankedCause] = Field(default_factory=list)
+    responsible_parties: List[ResponsibleParty] = Field(default_factory=list)
 
 class FinancialResolution(BaseModel):
-    currency: Optional[str] = None
-    recommended_refund_brl: Optional[float] = None
+    currency: Optional[str] = "BRL"
+    recommended_refund_brl: Optional[float] = 0.0
 
 class CaseOutput(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
@@ -83,9 +83,10 @@ class CaseOutput(BaseModel):
     delivery_analysis: Optional[DeliveryAnalysis] = None
     payment_reconciliation: Optional[PaymentReconciliation] = None
     root_cause_analysis: Optional[RootCauseAnalysis] = None
-    evidence_ids: Optional[List[str]] = None
+    evidence_ids: List[str] = Field(default_factory=list)
     financial_resolution: Optional[FinancialResolution] = None
-    resolution_actions: Optional[List[str]] = None
+    resolution_actions: List[str] = Field(default_factory=list)
 
     def to_output_dict(self) -> dict:
         return self.model_dump(exclude_none=False, by_alias=True)
+
