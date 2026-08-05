@@ -1,10 +1,18 @@
 import os
+from dotenv import load_dotenv
 
-# Model config
-MODEL_NAME = "gemma-3-12b-it"
+# Load environment variables from .env file if present
+load_dotenv()
+
+# Model config - HARDCODED in source code as required by section 9 of README
+# Model must be <= 10B parameters
+MODEL_NAME = "gemma-3-12b-it"  # Replace with your local/provider model <= 10B
 MODEL_PROVIDER = "openrouter"
+
+# API credentials loaded from environment variables (.env)
 MODEL_BASE_URL = os.getenv("MODEL_BASE_URL", "http://localhost:11434/v1")
 MODEL_API_KEY = os.getenv("MODEL_API_KEY", "")
+
 
 # Directory configs
 CODEBASE_DIR = os.path.dirname(os.path.abspath(__file__))
