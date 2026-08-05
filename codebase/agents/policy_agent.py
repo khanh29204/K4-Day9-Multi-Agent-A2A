@@ -156,23 +156,23 @@ class PolicyAgent(BaseAgent):
             try:
                 system_prompt = (
                     "You are Policy Agent in an e-commerce multi-agent dispute resolution system. "
-                    "Synthesize findings from Customer Agent, Order Product Agent, Payment Agent, and Delivery Agent. "
-                    "Apply EC_POLICY_V2 policy rules to confirm primary issue, secondary issues, root cause code, refund amount, and resolution actions. "
-                    "Return a JSON synthesis."
+                    "All primary issues, secondary issues, root cause codes, refund amounts, evidence IDs, and resolution actions are pre-computed by Python policy tools under EC_POLICY_V2 rules. "
+                    "Do not perform any calculations. Summarize the pre-computed policy resolution in JSON format."
                 )
                 user_prompt = (
                     f"Case Order ID: {order_id}\n"
                     f"Order Status: {order_status}\n"
                     f"Customer Unique ID: {customer_result.get('customer_unique_id')}\n"
-                    f"Payment Total: {payment_total} BRL, Reconciled: {reconciled}\n"
-                    f"Delivery Variance: {delivery_result.get('delivery_variance_hours')} hours, Is Late: {is_late_delivery}\n"
-                    f"Determined Primary Issue: {primary_issue}\n"
-                    f"Determined Root Cause Code: {root_cause_code}\n"
-                    f"Recommended Refund: {refund_amount} BRL\n"
-                    f"Case Status: {case_status}\n"
-                    f"Resolution Actions: {resolution_actions}\n"
-                    "Synthesize policy resolution and return JSON."
+                    f"Pre-computed Payment Total: {payment_total} BRL, Reconciled: {reconciled}\n"
+                    f"Pre-computed Delivery Variance: {delivery_result.get('delivery_variance_hours')} hours, Is Late: {is_late_delivery}\n"
+                    f"Pre-computed Primary Issue: {primary_issue}\n"
+                    f"Pre-computed Root Cause Code: {root_cause_code}\n"
+                    f"Pre-computed Recommended Refund: {refund_amount} BRL\n"
+                    f"Pre-computed Case Status: {case_status}\n"
+                    f"Pre-computed Resolution Actions: {resolution_actions}\n"
+                    "Summarize policy resolution in JSON format."
                 )
+
                 messages = self._build_prompt(system_prompt, user_prompt)
                 llm_response = self.llm.chat_json(messages)
                 self.logger.info(f"[{self.name}] LLM response received for order {order_id}")
@@ -325,30 +325,43 @@ class PolicyAgent(BaseAgent):
         responsible_parties: List[Dict[str, str]],
         root_cause_code: str,
     ) -> List[str]:
+        # Keep room for the causal policy evidence and responsible sellers.
+        # A blind ``evidence[:20]`` can otherwise drop the policy ID on large
+        # orders, producing an output that claims a cause without evidence.
         evidence: List[str] = [f"order:{order_id}"]
+        seller_evidence = [
+            f"seller:{party['party_id']}"
+            for party in responsible_parties
+            if party.get("party_type") == "seller" and party.get("party_id")
+        ]
+        detail_capacity = max(0, 20 - len(evidence) - len(seller_evidence) - (1 if root_cause_code else 0))
+        details: List[str] = []
         if items:
             for item in items:
+                if len(details) >= detail_capacity:
+                    break
                 item_id = item.get("order_item_id")
                 if item_id is not None:
                     try:
-                        evidence.append(f"item:{order_id}:{int(float(item_id))}")
+                        details.append(f"item:{order_id}:{int(float(item_id))}")
                     except (ValueError, TypeError):
                         pass
         if payment_rows:
             for p in payment_rows:
+                if len(details) >= detail_capacity:
+                    break
                 seq = p.get("payment_sequential")
                 if seq is not None:
                     try:
-                        evidence.append(f"payment:{order_id}:{int(float(seq))}")
+                        details.append(f"payment:{order_id}:{int(float(seq))}")
                     except (ValueError, TypeError):
                         pass
 
-        for party in responsible_parties:
-            if party.get("party_type") == "seller" and party.get("party_id"):
-                evidence.append(f"seller:{party['party_id']}")
+        evidence.extend(details)
+        evidence.extend(seller_evidence)
         if root_cause_code:
             evidence.append(f"policy:{root_cause_code}")
-        return evidence[:20]
+        return evidence
 
     def _build_responsible_parties(
         self,

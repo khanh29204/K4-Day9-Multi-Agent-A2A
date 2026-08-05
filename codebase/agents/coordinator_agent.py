@@ -14,8 +14,6 @@ Responsibilities:
 This is the entry point for processing each case.
 """
 import asyncio
-import json
-import os
 from typing import Any, Dict, Optional
 
 from models import (
@@ -31,6 +29,7 @@ from models import (
     ResponsibleParty,
     RootCauseAnalysis,
     SellerHandoffAnalysis,
+    CaseInput,
 )
 from .base_agent import BaseAgent
 from .customer_agent import CustomerAgent
@@ -60,17 +59,38 @@ class CoordinatorAgent(BaseAgent):
         Returns:
             - Full case output dict matching the output schema
         """
-        case_input = context["case_input"]
-        case_id = case_input["case_id"]
-        order_id = case_input["customer_request"]["claimed_order_id"]
+        # Treat every field from the request as untrusted. In particular, the
+        # free-text message must never become an instruction or evidence.
+        # Pydantic also rejects malformed IDs and unknown control fields before
+        # they reach the data-access layer.
+        case_input = CaseInput.model_validate(context["case_input"])
+        case_id = case_input.case_id
+        order_id = case_input.customer_request.claimed_order_id
 
         self.logger.info(f"Processing case {case_id} for order {order_id}")
 
         # Step 1: Fetch order data
         order_data = self.data.get_order(order_id)
         if not order_data:
-            self.logger.error(f"Order {order_id} not found")
-            return self._build_empty_output(case_id, order_id)
+            # Do not turn a user-supplied, unknown ID into fabricated evidence
+            # or a policy verdict. The caller should receive a controlled error.
+            raise ValueError("claimed_order_id does not exist")
+
+        authenticated_customer_id = case_input.customer_request.authenticated_customer_id
+        if authenticated_customer_id:
+            if authenticated_customer_id != order_data.get("customer_id"):
+                self.logger.warning(
+                    "Rejected case %s: authenticated customer does not own claimed order",
+                    case_id,
+                )
+                raise PermissionError("authenticated customer does not own claimed_order_id")
+        else:
+            # The exercise input has no authenticated identity. We can verify
+            # facts in CSV, but cannot establish that the requester owns them.
+            self.logger.warning(
+                "Case %s has no authenticated customer; ownership cannot be verified",
+                case_id,
+            )
 
         shared_context = {
             "case_id": case_id,
@@ -148,7 +168,7 @@ class CoordinatorAgent(BaseAgent):
                 handoff_variance_hours=sh.get("handoff_variance_hours"),
                 late_handoff=sh.get("late_handoff"),
             )
-            for sh in raw_seller_handoff
+            for sh in raw_seller_handoff[:3]
         ]
 
         delivery_analysis = DeliveryAnalysis(
@@ -216,59 +236,4 @@ class CoordinatorAgent(BaseAgent):
             resolution_actions=policy_res.get("resolution_actions", [])[:5],
         )
 
-        return output.to_output_dict()
-
-    def _build_empty_output(self, case_id: str, order_id: str) -> Dict[str, Any]:
-        """Build a minimal output for cases where order is not found."""
-        output = CaseOutput(
-            case_id=case_id,
-            case_assessment=CaseAssessment(
-                primary_issue="unsupported_late_claim",
-                secondary_issues=[],
-                case_status="no_action",
-                confidence=0.0,
-            ),
-            affected_entities=AffectedEntities(
-                order_ids=[order_id],
-                item_ids=[],
-                seller_ids=[],
-                payment_ids=[],
-            ),
-            customer_context=CustomerContext(
-                customer_unique_id=None,
-                related_order_ids=[],
-            ),
-            product_context=ProductContext(
-                product_ids=[],
-                category_names=[],
-            ),
-            delivery_analysis=DeliveryAnalysis(
-                delivered_at=None,
-                estimated_delivery_at=None,
-                carrier_handoff_at=None,
-                delivery_variance_hours=None,
-                seller_handoff_analysis=[],
-                late_handoff_seller_ids=[],
-            ),
-            payment_reconciliation=PaymentReconciliation(
-                currency="BRL",
-                item_total_brl=None,
-                freight_total_brl=None,
-                expected_total_brl=None,
-                payment_total_brl=None,
-                difference_brl=None,
-                reconciled=None,
-                payment_types=[],
-            ),
-            root_cause_analysis=RootCauseAnalysis(
-                ranked_causes=[],
-                responsible_parties=[],
-            ),
-            evidence_ids=[f"order:{order_id}"],
-            financial_resolution=FinancialResolution(
-                currency="BRL",
-                recommended_refund_brl=0.0,
-            ),
-            resolution_actions=["reject_late_refund"],
-        )
         return output.to_output_dict()

@@ -125,21 +125,21 @@ class DeliveryAgent(BaseAgent):
             try:
                 system_prompt = (
                     "You are Delivery Agent in an e-commerce multi-agent dispute resolution system. "
-                    "Analyze delivery timeline, carrier handoff, estimated delivery date, and seller shipping limit deadlines. "
-                    "Determine whether late delivery was caused by seller handoff delay or logistics provider delay. "
-                    "Return a JSON analysis."
+                    "All timestamp formatting, delivery variance hours, seller handoff variances, and late status flags are pre-computed by Python data tools. "
+                    "Do not perform any calculations. Summarize the pre-computed delivery timing context in JSON format."
                 )
                 user_prompt = (
                     f"Order ID: {order_id}\n"
                     f"Delivered at: {delivered_raw}\n"
                     f"Estimated delivery: {estimated_raw}\n"
                     f"Carrier handoff at: {handoff_raw}\n"
-                    f"Delivery variance (hours): {delivery_variance_hours}\n"
-                    f"Is late delivery: {is_late_delivery}\n"
-                    f"Late handoff seller IDs: {late_handoff_seller_ids}\n"
-                    f"Late delivery responsibility type: {late_delivery_type}\n"
-                    "Analyze logistics and seller handoff timeline and return JSON."
+                    f"Pre-computed Delivery variance (hours): {delivery_variance_hours}\n"
+                    f"Pre-computed Is late delivery: {is_late_delivery}\n"
+                    f"Pre-computed Late handoff seller IDs: {late_handoff_seller_ids}\n"
+                    f"Pre-computed Late delivery responsibility type: {late_delivery_type}\n"
+                    "Summarize delivery timing context in JSON format."
                 )
+
                 messages = self._build_prompt(system_prompt, user_prompt)
                 llm_response = self.llm.chat_json(messages)
                 self.logger.info(f"[{self.name}] LLM response received for order {order_id}")

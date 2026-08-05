@@ -100,17 +100,18 @@ class OrderProductAgent(BaseAgent):
             try:
                 system_prompt = (
                     "You are Order & Product Agent in an e-commerce multi-agent dispute resolution system. "
-                    "Analyze the order items, sellers, product details, and category structure. "
-                    "Return a JSON object evaluating item complexity, seller count, and category diversity."
+                    "All item counts, seller IDs, product IDs, and category lists are pre-computed by Python data tools. "
+                    "Do not perform any calculations. Summarize the pre-computed order item context in JSON format."
                 )
                 user_prompt = (
                     f"Order ID: {order_id}\n"
-                    f"Total item rows: {len(items)}\n"
-                    f"Unique seller IDs: {affected_seller_ids}\n"
-                    f"Categories (English): {categories}\n"
-                    f"Flags: multi_item={is_multi_item}, multi_seller={is_multi_seller}, multi_category={is_multiple_categories}\n"
-                    "Analyze and confirm the item and product structure in JSON format."
+                    f"Pre-computed item rows count: {len(items)}\n"
+                    f"Pre-computed unique seller IDs: {affected_seller_ids}\n"
+                    f"Pre-computed categories: {categories}\n"
+                    f"Pre-computed flags: multi_item={is_multi_item}, multi_seller={is_multi_seller}, multi_category={is_multiple_categories}\n"
+                    "Summarize the order item context in JSON format."
                 )
+
                 messages = self._build_prompt(system_prompt, user_prompt)
                 llm_response = self.llm.chat_json(messages)
                 self.logger.info(f"[{self.name}] LLM response received for order {order_id}")

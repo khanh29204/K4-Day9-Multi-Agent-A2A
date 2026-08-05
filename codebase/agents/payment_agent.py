@@ -105,20 +105,20 @@ class PaymentAgent(BaseAgent):
             try:
                 system_prompt = (
                     "You are Payment Agent in an e-commerce multi-agent dispute resolution system. "
-                    "Perform financial reconciliation comparing actual payment rows against expected item + freight totals. "
-                    "Verify split payment and reconciliation status within 0.10 BRL tolerance. "
-                    "Return a JSON analysis."
+                    "All financial totals, item totals, freight totals, difference amounts, and 0.10 BRL reconciliation statuses are pre-computed by Python data tools. "
+                    "Do not perform any calculations. Summarize the pre-computed payment reconciliation context in JSON format."
                 )
                 user_prompt = (
                     f"Order ID: {order_id}\n"
-                    f"Total payment rows: {len(payment_rows)}\n"
-                    f"Payment total: {payment_total_brl} BRL\n"
-                    f"Expected total: {expected_total_brl} BRL (Item: {item_total_brl}, Freight: {freight_total_brl})\n"
-                    f"Difference: {difference_brl} BRL\n"
-                    f"Reconciled status: {reconciled}\n"
-                    f"Payment types: {payment_types}\n"
-                    "Analyze financial reconciliation and return JSON."
+                    f"Pre-computed payment rows count: {len(payment_rows)}\n"
+                    f"Pre-computed Payment total: {payment_total_brl} BRL\n"
+                    f"Pre-computed Expected total: {expected_total_brl} BRL (Item: {item_total_brl}, Freight: {freight_total_brl})\n"
+                    f"Pre-computed Difference: {difference_brl} BRL\n"
+                    f"Pre-computed Reconciled status: {reconciled}\n"
+                    f"Pre-computed Payment types: {payment_types}\n"
+                    "Summarize financial reconciliation context in JSON format."
                 )
+
                 messages = self._build_prompt(system_prompt, user_prompt)
                 llm_response = self.llm.chat_json(messages)
                 self.logger.info(f"[{self.name}] LLM response received for order {order_id}")

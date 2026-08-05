@@ -70,17 +70,18 @@ class CustomerAgent(BaseAgent):
             try:
                 system_prompt = (
                     "You are Customer Agent in an e-commerce multi-agent dispute resolution system. "
-                    "Analyze the customer profile and historical orders to verify repeat customer status. "
-                    "Return a JSON object with keys: 'customer_unique_id', 'related_order_ids', 'is_repeat_customer', 'analysis_summary'."
+                    "All customer identity lookups and historical order counts are pre-computed by Python data tools. "
+                    "Do not perform any calculations. Summarize the pre-computed customer history context in JSON format."
                 )
                 user_prompt = (
                     f"Current claimed order: {order_id}\n"
                     f"Customer ID: {customer_id}\n"
-                    f"Customer Unique ID: {customer_unique_id}\n"
-                    f"Total historical orders found: {len(all_orders)}\n"
-                    f"Related order IDs (excluding current): {related_order_ids}\n"
-                    "Provide your customer history assessment in JSON format."
+                    f"Pre-computed Customer Unique ID: {customer_unique_id}\n"
+                    f"Pre-computed historical orders count: {len(all_orders)}\n"
+                    f"Pre-computed Related order IDs: {related_order_ids}\n"
+                    "Provide your customer history summary in JSON format."
                 )
+
                 messages = self._build_prompt(system_prompt, user_prompt)
                 llm_response = self.llm.chat_json(messages)
                 self.logger.info(f"[{self.name}] LLM response received for customer {customer_unique_id}")

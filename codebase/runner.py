@@ -104,6 +104,8 @@ async def main():
                 output_path = os.path.join(OUTPUT_DIR, f"{case_id}.json")
                 with open(output_path, "w", encoding="utf-8") as f:
                     json.dump(result, f, indent=2, ensure_ascii=False)
+                    f.write("\n")
+
                 logger.info(f"{case_id} completed in {time.time() - case_start:.2f}s")
             else:
                 logger.warning(f"{case_id} returned no result")

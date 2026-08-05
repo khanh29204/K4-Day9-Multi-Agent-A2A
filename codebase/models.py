@@ -1,16 +1,34 @@
 from typing import List, Optional
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, StrictStr
+
+
+class InvestigationScope(BaseModel):
+    """Requested enrichment only; it never changes the policy decision."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    include_customer_history: bool = False
+    include_product_context: bool = False
 
 class CustomerRequest(BaseModel):
-    language: Optional[str] = None
-    message: Optional[str] = None
-    claimed_order_id: Optional[str] = None
+    model_config = ConfigDict(extra="forbid")
+
+    language: Optional[StrictStr] = None
+    # Untrusted free text: retained for audit/UI only and never used as evidence
+    # or instructions for an agent.
+    message: Optional[StrictStr] = None
+    claimed_order_id: StrictStr = Field(pattern=r"^[0-9a-f]{32}$")
+    # Production callers can supply an authenticated principal. The coordinator
+    # checks it against the order record before disclosing any order data.
+    authenticated_customer_id: Optional[StrictStr] = None
 
 class CaseInput(BaseModel):
-    case_id: str
+    model_config = ConfigDict(extra="forbid")
+
+    case_id: StrictStr = Field(pattern=r"^EC_\d{3}$")
     customer_request: CustomerRequest
-    investigation_scope: Optional[List[str]] = None
-    policy_version: Optional[str] = None
+    investigation_scope: Optional[InvestigationScope] = None
+    policy_version: Optional[StrictStr] = Field(default=None, pattern=r"^EC_POLICY_V2$")
 
 class CaseAssessment(BaseModel):
     primary_issue: Optional[str] = None
@@ -89,4 +107,3 @@ class CaseOutput(BaseModel):
 
     def to_output_dict(self) -> dict:
         return self.model_dump(exclude_none=False, by_alias=True)
-
