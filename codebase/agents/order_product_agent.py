@@ -96,7 +96,7 @@ class OrderProductAgent(BaseAgent):
             "is_multi_item": len(items) >= 2,
             "is_multi_seller": len(seen_seller_ids) >= 2,
             "is_multiple_categories": len(seen_categories) >= 2,
-            "affected_item_ids": affected_item_ids,
+            "affected_item_ids": affected_item_ids[:5],
             "affected_seller_ids": affected_seller_ids[:3],
             "affected_product_ids": affected_product_ids[:5],
         }
