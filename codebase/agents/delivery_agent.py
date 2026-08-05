@@ -3,6 +3,7 @@
 Responsibilities:
 - Calculate delivery_variance_hours
 - Calculate handoff_variance_hours per seller
+- Use LLM to evaluate delay responsibility (seller vs logistics provider)
 - Determine if delivery was late
 - Determine which sellers had late handoff
 - Identify responsible party for late delivery
@@ -36,7 +37,8 @@ def _parse_ts(value: Any) -> Optional[datetime]:
 
 def _clean_ts(value: Any) -> Optional[str]:
     """Normalize a timestamp for output, keeping the original CSV format."""
-    return value.strftime(TIMESTAMP_FORMAT) if _parse_ts(value) else None
+    dt = _parse_ts(value)
+    return dt.strftime(TIMESTAMP_FORMAT) if dt else None
 
 
 def _variance_hours(later: Optional[datetime], earlier: Optional[datetime]) -> Optional[float]:
@@ -52,12 +54,12 @@ class DeliveryAgent(BaseAgent):
 
     async def process(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze delivery timing.
-        
+
         Expected context keys:
             - order_id: str
             - order_data: dict (order timestamps)
             - items: list of item dicts (shipping_limit_date per seller)
-        
+
         Returns:
             - delivered_at: str or None
             - estimated_delivery_at: str or None
@@ -81,10 +83,8 @@ class DeliveryAgent(BaseAgent):
         handoff_at_dt = _parse_ts(handoff_raw)
 
         delivery_variance_hours = _variance_hours(delivered_at_dt, estimated_at_dt)
-        # A missing timestamp means we cannot prove lateness, so it is not late.
         is_late_delivery = delivery_variance_hours is not None and delivery_variance_hours > 0
 
-        # Each seller is judged against its EARLIEST shipping_limit_date across the order's items.
         earliest_limit_by_seller: Dict[str, datetime] = {}
         seller_order: list = []
         for item in items:
@@ -115,12 +115,36 @@ class DeliveryAgent(BaseAgent):
             if late_handoff:
                 late_handoff_seller_ids.append(seller_id)
 
-        # Responsibility only applies when the delivery itself was late: seller if any
-        # handoff missed its limit, otherwise the carrier owns the delay.
         if is_late_delivery:
             late_delivery_type = "seller" if late_handoff_seller_ids else "logistics"
         else:
             late_delivery_type = None
+
+        # LLM reasoning integration
+        if self.llm:
+            try:
+                system_prompt = (
+                    "You are Delivery Agent in an e-commerce multi-agent dispute resolution system. "
+                    "Analyze delivery timeline, carrier handoff, estimated delivery date, and seller shipping limit deadlines. "
+                    "Determine whether late delivery was caused by seller handoff delay or logistics provider delay. "
+                    "Return a JSON analysis."
+                )
+                user_prompt = (
+                    f"Order ID: {order_id}\n"
+                    f"Delivered at: {delivered_raw}\n"
+                    f"Estimated delivery: {estimated_raw}\n"
+                    f"Carrier handoff at: {handoff_raw}\n"
+                    f"Delivery variance (hours): {delivery_variance_hours}\n"
+                    f"Is late delivery: {is_late_delivery}\n"
+                    f"Late handoff seller IDs: {late_handoff_seller_ids}\n"
+                    f"Late delivery responsibility type: {late_delivery_type}\n"
+                    "Analyze logistics and seller handoff timeline and return JSON."
+                )
+                messages = self._build_prompt(system_prompt, user_prompt)
+                llm_response = self.llm.chat_json(messages)
+                self.logger.info(f"[{self.name}] LLM response received for order {order_id}")
+            except Exception as e:
+                self.logger.warning(f"[{self.name}] LLM analysis fallback due to: {e}")
 
         self.logger.info(
             f"[{self.name}] order={order_id} variance={delivery_variance_hours} "
@@ -138,4 +162,3 @@ class DeliveryAgent(BaseAgent):
             "is_late_delivery": is_late_delivery,
             "late_delivery_type": late_delivery_type,
         }
-

@@ -2,19 +2,24 @@ import json
 import time
 from typing import List, Dict, Optional, Any
 from openai import OpenAI
-from . import config
+import config
+
+
 
 class LLMClient:
-    def __init__(self, 
-                 model_name: str = config.MODEL_NAME, 
-                 base_url: str = config.MODEL_BASE_URL, 
-                 api_key: str = config.MODEL_API_KEY, 
-                 temperature: float = config.TEMPERATURE):
+    def __init__(
+        self,
+        model_name: str = config.MODEL_NAME,
+        base_url: str = config.MODEL_BASE_URL,
+        api_key: str = config.MODEL_API_KEY,
+        temperature: float = config.TEMPERATURE,
+    ):
         self.model_name = model_name
-        self.client = OpenAI(base_url=base_url, api_key=api_key)
+        self.client = OpenAI(base_url=base_url, api_key=api_key or "ollama")
         self.temperature = temperature
         self.max_retries = config.MAX_RETRIES
         self.trace: List[Dict[str, Any]] = []
+
 
     def _execute_with_retry(self, **kwargs) -> Any:
         retries = 0

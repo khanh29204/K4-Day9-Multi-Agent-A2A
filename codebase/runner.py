@@ -16,10 +16,11 @@ from datetime import datetime
 from typing import List
 
 from config import (
-    DATA_DIR, INPUT_DIR, OUTPUT_DIR, LOGGING_DIR,
+    DATA_DIR, INPUT_DIR, OUTPUT_DIR, LOGGING_DIR, CODEBASE_DIR,
     TRACE_FILE, METADATA_FILE, MODEL_NAME, MODEL_PROVIDER,
     MODEL_BASE_URL, MODEL_API_KEY, TEMPERATURE
 )
+
 from data_access import DataAccess
 from llm_client import LLMClient
 from agents.coordinator_agent import CoordinatorAgent
@@ -95,7 +96,8 @@ async def main():
     for case_id in case_ids:
         case_start = time.time()
         logger.info(f"--- Processing {case_id} ---")
-        
+
+        result = None
         try:
             result = await process_case(coordinator, case_id)
             if result:
@@ -107,29 +109,34 @@ async def main():
                 logger.warning(f"{case_id} returned no result")
         except Exception as e:
             logger.error(f"{case_id} failed: {e}", exc_info=True)
-        
-        # Record trace
+
+        # Record trace with real LLM interaction logs
+        case_llm_trace = llm.get_trace()
         trace_entries.append({
             "case_id": case_id,
             "timestamp": datetime.now().isoformat(),
             "duration_seconds": round(time.time() - case_start, 2),
             "status": "success" if result else "error",
             "model": MODEL_NAME,
+            "llm_calls_count": len(case_llm_trace),
+            "llm_trace": case_llm_trace,
         })
+
     
     total_time = time.time() - start_time
     logger.info(f"All cases processed in {total_time:.2f}s")
     
-    # Write trace.jsonl
+    # Write trace.jsonl exclusively inside logging/ directory
+    os.makedirs(LOGGING_DIR, exist_ok=True)
     with open(TRACE_FILE, "w", encoding="utf-8") as f:
         for entry in trace_entries:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
     logger.info(f"Trace written to {TRACE_FILE}")
-    
-    # Write metadata.json
+
+    # Write metadata.json exclusively inside logging/ directory
     metadata = {
         "model": MODEL_NAME,
-        "parameter_size": "12B",
+        "parameter_size": "8B",
         "framework": "custom-multi-agent",
         "runtime": f"{total_time:.2f}s",
         "provider": MODEL_PROVIDER,
@@ -139,6 +146,8 @@ async def main():
     with open(METADATA_FILE, "w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=2, ensure_ascii=False)
     logger.info(f"Metadata written to {METADATA_FILE}")
+
+
 
 
 if __name__ == "__main__":

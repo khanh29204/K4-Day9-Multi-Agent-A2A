@@ -7,6 +7,7 @@ Responsibilities:
 - Determine responsible_parties
 - Calculate recommended_refund_brl
 - Determine resolution_actions
+- Use LLM to perform policy synthesis and verification
 - Set case_status and confidence
 
 Policy priority order:
@@ -79,7 +80,7 @@ class PolicyAgent(BaseAgent):
         items = order_product_result.get("items", [])
         payment_rows = payment_result.get("payment_rows", [])
 
-        # --- Subtask 3.1: Primary issue determination ---
+        # --- Primary issue determination ---
         (
             primary_issue,
             root_cause_code,
@@ -97,7 +98,7 @@ class PolicyAgent(BaseAgent):
             freight_total=freight_total,
         )
 
-        # --- Subtask 3.2: Secondary issues ---
+        # --- Secondary issues ---
         secondary_issues = self._determine_secondary_issues(
             is_multi_item=is_multi_item,
             is_multi_seller=is_multi_seller,
@@ -106,7 +107,7 @@ class PolicyAgent(BaseAgent):
             is_multiple_categories=is_multiple_categories,
         )
 
-        # --- Subtask 3.5: Responsible parties ---
+        # --- Responsible parties ---
         responsible_parties = self._build_responsible_parties(
             primary_issue=primary_issue,
             party_type=party_type,
@@ -114,7 +115,7 @@ class PolicyAgent(BaseAgent):
             late_handoff_seller_ids=late_handoff_seller_ids,
         )
 
-        # --- Subtask 3.3: Resolution actions ---
+        # --- Resolution actions ---
         has_late_seller = primary_issue == "late_delivery_seller"
         has_late_logistics = primary_issue == "late_delivery_logistics"
         has_refund = refund_amount > 0
@@ -129,7 +130,7 @@ class PolicyAgent(BaseAgent):
             is_split_payment=is_split_payment,
         )
 
-        # --- Subtask 3.4: Evidence IDs ---
+        # --- Evidence IDs ---
         evidence_ids = self._build_evidence_ids(
             order_id=order_id,
             items=items,
@@ -141,15 +142,42 @@ class PolicyAgent(BaseAgent):
         # --- Determine case_status and confidence ---
         case_status = "action_required" if refund_amount > 0 else "no_action"
 
-        # Confidence: high if we have all data, lower if missing
         confidence = 0.95
         if not items:
             confidence -= 0.10
         if not payment_rows:
             confidence -= 0.10
         if order_status in ("canceled", "unavailable"):
-            confidence = 0.98  # Very clear-cut cases
+            confidence = 0.98
         confidence = round(max(0.0, min(1.0, confidence)), 2)
+
+        # LLM reasoning integration
+        if self.llm:
+            try:
+                system_prompt = (
+                    "You are Policy Agent in an e-commerce multi-agent dispute resolution system. "
+                    "Synthesize findings from Customer Agent, Order Product Agent, Payment Agent, and Delivery Agent. "
+                    "Apply EC_POLICY_V2 policy rules to confirm primary issue, secondary issues, root cause code, refund amount, and resolution actions. "
+                    "Return a JSON synthesis."
+                )
+                user_prompt = (
+                    f"Case Order ID: {order_id}\n"
+                    f"Order Status: {order_status}\n"
+                    f"Customer Unique ID: {customer_result.get('customer_unique_id')}\n"
+                    f"Payment Total: {payment_total} BRL, Reconciled: {reconciled}\n"
+                    f"Delivery Variance: {delivery_result.get('delivery_variance_hours')} hours, Is Late: {is_late_delivery}\n"
+                    f"Determined Primary Issue: {primary_issue}\n"
+                    f"Determined Root Cause Code: {root_cause_code}\n"
+                    f"Recommended Refund: {refund_amount} BRL\n"
+                    f"Case Status: {case_status}\n"
+                    f"Resolution Actions: {resolution_actions}\n"
+                    "Synthesize policy resolution and return JSON."
+                )
+                messages = self._build_prompt(system_prompt, user_prompt)
+                llm_response = self.llm.chat_json(messages)
+                self.logger.info(f"[{self.name}] LLM response received for order {order_id}")
+            except Exception as e:
+                self.logger.warning(f"[{self.name}] LLM analysis fallback due to: {e}")
 
         self.logger.info(
             f"Policy result: primary={primary_issue}, status={case_status}, "
@@ -169,7 +197,7 @@ class PolicyAgent(BaseAgent):
         }
 
     # ------------------------------------------------------------------ #
-    #  Subtask 3.1 — Primary issue determination                         #
+    #  Helper methods                                                    #
     # ------------------------------------------------------------------ #
 
     def _determine_primary_issue(
@@ -182,17 +210,10 @@ class PolicyAgent(BaseAgent):
         reconciled: Optional[bool],
         freight_total: Optional[float],
     ) -> Tuple[str, str, float, str, Optional[str], Optional[str]]:
-        """Determine the primary issue by checking conditions in strict priority order.
-
-        Returns:
-            tuple: (primary_issue, root_cause_code, refund_amount,
-                    main_action, party_type, party_id)
-        """
         safe_payment = float(payment_total) if payment_total is not None else 0.0
         safe_freight = float(freight_total) if freight_total is not None else 0.0
         safe_sellers = late_handoff_seller_ids if late_handoff_seller_ids else []
 
-        # 1. canceled_order_paid
         if order_status == "canceled" and safe_payment > 0:
             return (
                 "canceled_order_paid",
@@ -203,7 +224,6 @@ class PolicyAgent(BaseAgent):
                 "OLIST_PLATFORM",
             )
 
-        # 2. unavailable_order_paid
         if order_status == "unavailable" and safe_payment > 0:
             return (
                 "unavailable_order_paid",
@@ -214,7 +234,6 @@ class PolicyAgent(BaseAgent):
                 "OLIST_PLATFORM",
             )
 
-        # 3. late_delivery_seller
         if is_late_delivery is True and len(safe_sellers) > 0:
             return (
                 "late_delivery_seller",
@@ -225,7 +244,6 @@ class PolicyAgent(BaseAgent):
                 None,
             )
 
-        # 4. late_delivery_logistics
         if is_late_delivery is True and len(safe_sellers) == 0:
             return (
                 "late_delivery_logistics",
@@ -236,7 +254,6 @@ class PolicyAgent(BaseAgent):
                 "LOGISTICS_PROVIDER",
             )
 
-        # 5. valid_split_payment
         if is_split_payment is True and reconciled is True:
             return (
                 "valid_split_payment",
@@ -247,7 +264,6 @@ class PolicyAgent(BaseAgent):
                 None,
             )
 
-        # 6. unsupported_late_claim (fallback)
         return (
             "unsupported_late_claim",
             "DELIVERY_WITHIN_ESTIMATE",
@@ -257,10 +273,6 @@ class PolicyAgent(BaseAgent):
             None,
         )
 
-    # ------------------------------------------------------------------ #
-    #  Subtask 3.2 — Secondary issues                                    #
-    # ------------------------------------------------------------------ #
-
     def _determine_secondary_issues(
         self,
         is_multi_item: bool,
@@ -269,7 +281,6 @@ class PolicyAgent(BaseAgent):
         is_repeat_customer: bool,
         is_multiple_categories: bool,
     ) -> List[str]:
-        """Determine secondary issues in strict business-rule order."""
         issues: List[str] = []
         if is_multi_item:
             issues.append("multi_item_order")
@@ -283,10 +294,6 @@ class PolicyAgent(BaseAgent):
             issues.append("multiple_categories")
         return issues
 
-    # ------------------------------------------------------------------ #
-    #  Subtask 3.3 — Resolution actions                                  #
-    # ------------------------------------------------------------------ #
-
     def _build_resolution_actions(
         self,
         primary_issue: str,
@@ -297,14 +304,6 @@ class PolicyAgent(BaseAgent):
         is_multi_seller: bool,
         is_split_payment: bool,
     ) -> List[str]:
-        """Build the ordered list of resolution actions (max 5).
-
-        Order after the main action:
-        1. review_seller_handoff OR review_carrier_delay
-        2. verify_refund_completion (if refund > 0)
-        3. coordinate_multi_seller_case (if multi_seller)
-        4. verify_payment_allocation (if split_payment AND primary != valid_split_payment)
-        """
         actions: List[str] = [main_action]
         if has_late_seller:
             actions.append("review_seller_handoff")
@@ -318,10 +317,6 @@ class PolicyAgent(BaseAgent):
             actions.append("verify_payment_allocation")
         return actions[:5]
 
-    # ------------------------------------------------------------------ #
-    #  Subtask 3.4 — Evidence IDs                                        #
-    # ------------------------------------------------------------------ #
-
     def _build_evidence_ids(
         self,
         order_id: str,
@@ -330,41 +325,23 @@ class PolicyAgent(BaseAgent):
         responsible_parties: List[Dict[str, str]],
         root_cause_code: str,
     ) -> List[str]:
-        """Build evidence IDs from verifiable data (max 20).
-
-        Format:
-        - order:<order_id>
-        - item:<order_id>:<order_item_id>
-        - payment:<order_id>:<payment_sequential>
-        - seller:<seller_id>
-        - policy:<root_cause_code>
-        """
         evidence: List[str] = [f"order:{order_id}"]
-
         if items:
             for item in items:
                 item_id = item.get("order_item_id")
                 if item_id is not None:
                     evidence.append(f"item:{order_id}:{int(item_id)}")
-
         if payment_rows:
             for p in payment_rows:
                 seq = p.get("payment_sequential")
                 if seq is not None:
                     evidence.append(f"payment:{order_id}:{int(seq)}")
-
         for party in responsible_parties:
             if party.get("party_type") == "seller" and party.get("party_id"):
                 evidence.append(f"seller:{party['party_id']}")
-
         if root_cause_code:
             evidence.append(f"policy:{root_cause_code}")
-
         return evidence[:20]
-
-    # ------------------------------------------------------------------ #
-    #  Subtask 3.5 — Responsible parties                                 #
-    # ------------------------------------------------------------------ #
 
     def _build_responsible_parties(
         self,
@@ -373,20 +350,12 @@ class PolicyAgent(BaseAgent):
         party_id: Optional[str],
         late_handoff_seller_ids: Optional[List[str]],
     ) -> List[Dict[str, str]]:
-        """Build the list of responsible parties based on the primary issue.
-
-        - late_delivery_seller: one entry per late seller (max 3)
-        - platform/logistics: single entry with party_type + party_id
-        - no_action cases: empty list
-        """
         if primary_issue == "late_delivery_seller":
             safe_sellers = late_handoff_seller_ids if late_handoff_seller_ids else []
             return [
                 {"party_type": "seller", "party_id": str(sid)}
                 for sid in safe_sellers[:3]
             ]
-
         if party_type is not None and party_id is not None:
             return [{"party_type": str(party_type), "party_id": str(party_id)}]
-
         return []

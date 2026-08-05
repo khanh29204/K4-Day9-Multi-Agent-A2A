@@ -8,9 +8,10 @@ import os
 import json
 import glob
 
-BASE_DIR = r"d:\Vin_AI\K4-Day9-Multi-Agent-A2A"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_DIR = os.path.join(BASE_DIR, "output")
 INPUT_DIR = os.path.join(BASE_DIR, "input")
+
 
 WEIGHTS = {
     "issues": 0.15,
