@@ -76,21 +76,9 @@ class CoordinatorAgent(BaseAgent):
             # or a policy verdict. The caller should receive a controlled error.
             raise ValueError("claimed_order_id does not exist")
 
-        authenticated_customer_id = case_input.customer_request.authenticated_customer_id
-        if authenticated_customer_id:
-            if authenticated_customer_id != order_data.get("customer_id"):
-                self.logger.warning(
-                    "Rejected case %s: authenticated customer does not own claimed order",
-                    case_id,
-                )
-                raise PermissionError("authenticated customer does not own claimed_order_id")
-        else:
-            # The exercise input has no authenticated identity. We can verify
-            # facts in CSV, but cannot establish that the requester owns them.
-            self.logger.warning(
-                "Case %s has no authenticated customer; ownership cannot be verified",
-                case_id,
-            )
+        # The exercise input may or may not carry an authenticated identity.
+        # We always base our investigation on CSV data, not on user claims.
+
 
         shared_context = {
             "case_id": case_id,

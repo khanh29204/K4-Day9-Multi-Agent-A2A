@@ -39,6 +39,8 @@ def parse_timestamp(value: Any) -> Optional[datetime]:
 
 def format_timestamp(value: Any) -> Optional[str]:
     """Format a timestamp into standard YYYY-MM-DD HH:MM:SS format."""
+    if isinstance(value, datetime):
+        return value.strftime(TIMESTAMP_FORMAT)
     dt = parse_timestamp(value)
     return dt.strftime(TIMESTAMP_FORMAT) if dt else None
 

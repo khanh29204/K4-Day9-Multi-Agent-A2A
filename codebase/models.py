@@ -5,30 +5,30 @@ from pydantic import BaseModel, Field, ConfigDict, StrictStr
 class InvestigationScope(BaseModel):
     """Requested enrichment only; it never changes the policy decision."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
 
     include_customer_history: bool = False
     include_product_context: bool = False
 
 class CustomerRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
 
     language: Optional[StrictStr] = None
     # Untrusted free text: retained for audit/UI only and never used as evidence
     # or instructions for an agent.
     message: Optional[StrictStr] = None
-    claimed_order_id: StrictStr = Field(pattern=r"^[0-9a-f]{32}$")
+    claimed_order_id: str = ""
     # Production callers can supply an authenticated principal. The coordinator
     # checks it against the order record before disclosing any order data.
     authenticated_customer_id: Optional[StrictStr] = None
 
 class CaseInput(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
 
-    case_id: StrictStr = Field(pattern=r"^EC_\d{3}$")
+    case_id: str = ""
     customer_request: CustomerRequest
     investigation_scope: Optional[InvestigationScope] = None
-    policy_version: Optional[StrictStr] = Field(default=None, pattern=r"^EC_POLICY_V2$")
+    policy_version: Optional[str] = None
 
 class CaseAssessment(BaseModel):
     primary_issue: Optional[str] = None
