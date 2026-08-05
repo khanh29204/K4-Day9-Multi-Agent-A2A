@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Model config - HARDCODED in source code as required by section 9 of README
-MODEL_NAME = "qwen2.5-coder:1.5b"  # e.g. qwen3:4b, qwen2.5-coder:1.5b, llama-3.1-8b-instant
+MODEL_NAME = "qwen2.5:0.5b"  # e.g. qwen3:4b, qwen2.5-coder:1.5b, llama-3.1-8b-instant
 MODEL_PROVIDER = "ollama"  # ollama / groq / openrouter
 
 

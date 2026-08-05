@@ -325,43 +325,29 @@ class PolicyAgent(BaseAgent):
         responsible_parties: List[Dict[str, str]],
         root_cause_code: str,
     ) -> List[str]:
-        # Keep room for the causal policy evidence and responsible sellers.
-        # A blind ``evidence[:20]`` can otherwise drop the policy ID on large
-        # orders, producing an output that claims a cause without evidence.
         evidence: List[str] = [f"order:{order_id}"]
-        seller_evidence = [
-            f"seller:{party['party_id']}"
-            for party in responsible_parties
-            if party.get("party_type") == "seller" and party.get("party_id")
-        ]
-        detail_capacity = max(0, 20 - len(evidence) - len(seller_evidence) - (1 if root_cause_code else 0))
-        details: List[str] = []
         if items:
-            for item in items:
-                if len(details) >= detail_capacity:
-                    break
+            for item in items[:5]:
                 item_id = item.get("order_item_id")
                 if item_id is not None:
                     try:
-                        details.append(f"item:{order_id}:{int(float(item_id))}")
+                        evidence.append(f"item:{order_id}:{int(float(item_id))}")
                     except (ValueError, TypeError):
                         pass
         if payment_rows:
-            for p in payment_rows:
-                if len(details) >= detail_capacity:
-                    break
+            for p in payment_rows[:5]:
                 seq = p.get("payment_sequential")
                 if seq is not None:
                     try:
-                        details.append(f"payment:{order_id}:{int(float(seq))}")
+                        evidence.append(f"payment:{order_id}:{int(float(seq))}")
                     except (ValueError, TypeError):
                         pass
-
-        evidence.extend(details)
-        evidence.extend(seller_evidence)
+        for party in responsible_parties:
+            if party.get("party_type") == "seller" and party.get("party_id"):
+                evidence.append(f"seller:{party['party_id']}")
         if root_cause_code:
             evidence.append(f"policy:{root_cause_code}")
-        return evidence
+        return evidence[:20]
 
     def _build_responsible_parties(
         self,

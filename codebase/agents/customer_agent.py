@@ -51,16 +51,21 @@ class CustomerAgent(BaseAgent):
             }
 
         all_orders = self.data.get_customer_orders(customer_unique_id)
+        all_orders_sorted = sorted(
+            all_orders,
+            key=lambda o: str(o.get("order_purchase_timestamp") or ""),
+        )
 
         related_order_ids = []
         seen_related = set()
-        for order in all_orders:
+        for order in all_orders_sorted:
             oid = order.get("order_id")
             if oid and oid != order_id and oid not in seen_related:
                 seen_related.add(oid)
                 related_order_ids.append(oid)
                 if len(related_order_ids) >= 5:
                     break
+
 
         is_repeat_customer = len(related_order_ids) > 0
 
