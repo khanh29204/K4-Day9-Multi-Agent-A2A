@@ -193,11 +193,3 @@ limit_resolution_actions = 5
 - **Cách xử lý đúng:** Ép kiểu `int(float(item['order_item_id']))` để đảm bảo chuỗi trả về đúng dạng `...:1`.
 
 ---
-
-## 🛠️ Code Verification Status
-
-Tất cả 16 bẫy trên đã được kiểm tra và xử lý triệt để trong codebase:
-- ✅ `models.py`: Đã mặc định mảng rỗng `[]` thay vì `null` cho các trường danh sách.
-- ✅ `order_product_agent.py`: Đã giữ nguyên tên tiếng Bồ Đào Nha cho `category_names` (`product_category_name`) và ép kiểu `int(float(...))` cho `order_item_id`.
-- ✅ `policy_agent.py`: Đã cài đặt đúng 100% thứ tự ưu tiên, công thức, evidence format, và điều kiện loại trừ action.
-- ✅ `data_access.py`: Đã hỗ trợ lookup `customer_unique_id`.
