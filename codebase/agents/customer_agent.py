@@ -27,9 +27,28 @@ class CustomerAgent(BaseAgent):
             - related_order_ids: list[str]
             - is_repeat_customer: bool
         """
-        # TODO: Implement customer lookup and history analysis
-        # 1. Get customer_id from order_data
-        # 2. Look up customer to get customer_unique_id
-        # 3. Find all orders with same customer_unique_id
-        # 4. Return customer context
-        raise NotImplementedError("CustomerAgent.process() not yet implemented")
+        order_id = context["order_id"]
+        order_data = context["order_data"]
+
+        customer_id = order_data.get("customer_id")
+        customer = self.data.get_customer(customer_id) if customer_id else None
+
+        if not customer:
+            return {
+                "customer_unique_id": None,
+                "related_order_ids": [],
+                "is_repeat_customer": False,
+            }
+
+        customer_unique_id = customer.get("customer_unique_id")
+        all_orders = self.data.get_customer_orders(customer_unique_id)
+
+        related_order_ids = [
+            order["order_id"] for order in all_orders if order.get("order_id") != order_id
+        ][:5]
+
+        return {
+            "customer_unique_id": customer_unique_id,
+            "related_order_ids": related_order_ids,
+            "is_repeat_customer": len(related_order_ids) > 0,
+        }
